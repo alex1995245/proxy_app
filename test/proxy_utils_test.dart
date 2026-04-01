@@ -68,6 +68,56 @@ void main() {
       expect(model.supportsHttps, true);
     });
 
+    test('fromJson strips socks5:// protocol prefix', () {
+      final model = ProxyModel.fromJson({
+        'proxy': 'socks5://1.2.3.4:1080',
+        'countryCode': 'US',
+      });
+      expect(model.ip, '1.2.3.4');
+      expect(model.port, 1080);
+    });
+
+    test('fromJson strips socks4:// protocol prefix', () {
+      final model = ProxyModel.fromJson({'proxy': 'socks4://5.6.7.8:3128'});
+      expect(model.ip, '5.6.7.8');
+      expect(model.port, 3128);
+    });
+
+    test('fromJson strips http:// protocol prefix', () {
+      final model = ProxyModel.fromJson({'proxy': 'http://9.10.11.12:8080'});
+      expect(model.ip, '9.10.11.12');
+      expect(model.port, 8080);
+    });
+
+    test('fromJson falls back to separate ip/port fields', () {
+      final model = ProxyModel.fromJson({
+        'ip': '1.2.3.4',
+        'port': 9050,
+        'countryCode': 'DE',
+      });
+      expect(model.ip, '1.2.3.4');
+      expect(model.port, 9050);
+    });
+
+    test('fromJson reads host field as fallback', () {
+      final model = ProxyModel.fromJson({
+        'host': 'myproxy.example.com',
+        'port': 1080,
+      });
+      expect(model.ip, 'myproxy.example.com');
+      expect(model.port, 1080);
+    });
+
+    test('fromJson reads geolocation nested field', () {
+      final model = ProxyModel.fromJson({
+        'ip': '1.2.3.4',
+        'port': 1080,
+        'geolocation': {'country': 'US', 'city': 'New York'},
+      });
+      expect(model.countryCode, 'US');
+      expect(model.country, 'New York');
+    });
+
     test('address getter returns ip:port', () {
       const model = ProxyModel(ip: '1.2.3.4', port: 1080);
       expect(model.address, '1.2.3.4:1080');

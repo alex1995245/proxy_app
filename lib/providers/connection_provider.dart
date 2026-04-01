@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../core/utils/proxy_utils.dart';
 import '../models/proxy_model.dart';
 import '../services/health_check_service.dart';
+import '../services/local_proxy_server.dart';
 import '../services/proxifly_api_service.dart';
 import '../services/proxy_connection_service.dart';
 import '../services/storage_service.dart';
@@ -34,6 +35,7 @@ class ConnectionProvider extends ChangeNotifier {
   final ProxiflyApiService _apiService;
 
   HealthCheckService? _healthCheck;
+  final LocalProxyServer _localProxy = LocalProxyServer();
 
   ConnectionStatus _status = ConnectionStatus.disconnected;
   ProxyModel? _activeProxy;
@@ -53,6 +55,16 @@ class ConnectionProvider extends ChangeNotifier {
   bool get isConnecting =>
       _status == ConnectionStatus.connecting ||
       _status == ConnectionStatus.switching;
+
+  /// Returns true when the local SOCKS5 bridge is active.
+  bool get isBridgeRunning => _localProxy.isRunning;
+
+  /// Returns a human-readable description of the active bridge, e.g.
+  /// "127.0.0.1:1080 → 163.198.212.187:8000", or null when not running.
+  String? get bridgeDescription {
+    if (!_localProxy.isRunning || _activeProxy == null) return null;
+    return '127.0.0.1:${_localProxy.localPort} → ${_activeProxy!.address}';
+  }
 
   Duration get uptime {
     if (_connectedAt == null) return Duration.zero;
@@ -91,17 +103,38 @@ class ConnectionProvider extends ChangeNotifier {
     unawaited(_refreshExternalIp());
 
     if (_settings.enableSystemProxy) {
-      final sysOk =
-          await SystemProxyService.enableProxy(target.ip, target.port);
-      if (sysOk) {
+      // Start local SOCKS5 bridge (no-auth) that forwards to the remote proxy
+      final bridgeOk = await _localProxy.start(
+        remoteHost: target.ip,
+        remotePort: target.port,
+        username: target.username,
+        password: target.password,
+      );
+
+      if (bridgeOk) {
         _addNotification(
-            'System proxy enabled for ${target.ip}:${target.port}');
+            'Local proxy bridge started on 127.0.0.1:${_localProxy.localPort}');
+        final sysOk = await SystemProxyService.enableProxy(
+            '127.0.0.1', _localProxy.localPort);
+        if (sysOk) {
+          _addNotification(
+              'System proxy enabled: 127.0.0.1:${_localProxy.localPort}');
+        }
+      } else {
+        // Fallback: use the remote proxy directly in the registry
+        final sysOk =
+            await SystemProxyService.enableProxy(target.ip, target.port);
+        if (sysOk) {
+          _addNotification(
+              'System proxy enabled for ${target.ip}:${target.port}');
+        }
       }
     }
   }
 
   void disconnect() {
     _stopHealthCheck();
+    _localProxy.stop();
     _connectionService.disconnect();
     _activeProxy = null;
     _externalIp = null;
@@ -206,6 +239,7 @@ class ConnectionProvider extends ChangeNotifier {
   @override
   void dispose() {
     _stopHealthCheck();
+    _localProxy.stop();
     super.dispose();
   }
 }
