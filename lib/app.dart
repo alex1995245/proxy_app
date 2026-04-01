@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,6 +10,7 @@ import 'providers/settings_provider.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/proxy_list_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/system_proxy_service.dart';
 
 class ProxyApp extends StatelessWidget {
   const ProxyApp({super.key});
@@ -33,7 +36,7 @@ class _MainShell extends StatefulWidget {
   State<_MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<_MainShell> {
+class _MainShellState extends State<_MainShell> with WidgetsBindingObserver {
   int _currentIndex = 0;
 
   static const _screens = [
@@ -45,7 +48,21 @@ class _MainShellState extends State<_MainShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _onStartup());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.detached) {
+      unawaited(SystemProxyService.disableProxy());
+    }
   }
 
   Future<void> _onStartup() async {

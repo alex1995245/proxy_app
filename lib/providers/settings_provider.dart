@@ -16,6 +16,7 @@ class SettingsProvider extends ChangeNotifier {
   late String _preferredCountry;
   late bool _autoConnect;
   late bool _darkTheme;
+  late bool _enableSystemProxy;
 
   String get apiKey => _apiKey;
   int get healthCheckInterval => _healthCheckInterval;
@@ -23,6 +24,7 @@ class SettingsProvider extends ChangeNotifier {
   String get preferredCountry => _preferredCountry;
   bool get autoConnect => _autoConnect;
   bool get darkTheme => _darkTheme;
+  bool get enableSystemProxy => _enableSystemProxy;
 
   void _load() {
     _apiKey = _storage.apiKey;
@@ -31,6 +33,7 @@ class SettingsProvider extends ChangeNotifier {
     _preferredCountry = _storage.preferredCountry;
     _autoConnect = _storage.autoConnect;
     _darkTheme = _storage.darkTheme;
+    _enableSystemProxy = _storage.enableSystemProxy;
   }
 
   Future<void> setApiKey(String value) async {
@@ -66,6 +69,12 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setDarkTheme(bool value) async {
     _darkTheme = value;
     await _storage.setDarkTheme(value);
+    notifyListeners();
+  }
+
+  Future<void> setEnableSystemProxy(bool value) async {
+    _enableSystemProxy = value;
+    await _storage.setEnableSystemProxy(value);
     notifyListeners();
   }
 
