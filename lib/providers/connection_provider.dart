@@ -1,0 +1,200 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+
+import '../core/utils/proxy_utils.dart';
+import '../models/proxy_model.dart';
+import '../services/health_check_service.dart';
+import '../services/proxifly_api_service.dart';
+import '../services/proxy_connection_service.dart';
+import '../services/storage_service.dart';
+import 'proxy_list_provider.dart';
+import 'settings_provider.dart';
+
+enum ConnectionStatus { disconnected, connecting, connected, switching }
+
+class ConnectionProvider extends ChangeNotifier {
+  ConnectionProvider({
+    required ProxyListProvider proxyListProvider,
+    required SettingsProvider settings,
+    required StorageService storage,
+    required ProxyConnectionService connectionService,
+    required ProxiflyApiService apiService,
+  })  : _proxyList = proxyListProvider,
+        _settings = settings,
+        _storage = storage,
+        _connectionService = connectionService,
+        _apiService = apiService;
+
+  final ProxyListProvider _proxyList;
+  final SettingsProvider _settings;
+  final StorageService _storage;
+  final ProxyConnectionService _connectionService;
+  final ProxiflyApiService _apiService;
+
+  HealthCheckService? _healthCheck;
+
+  ConnectionStatus _status = ConnectionStatus.disconnected;
+  ProxyModel? _activeProxy;
+  String? _externalIp;
+  DateTime? _connectedAt;
+  int _switchCount = 0;
+  int _failCount = 0;
+  final List<String> _notifications = [];
+
+  ConnectionStatus get status => _status;
+  ProxyModel? get activeProxy => _activeProxy;
+  String? get externalIp => _externalIp;
+  int get switchCount => _switchCount;
+  int get failCount => _failCount;
+  List<String> get notifications => List.unmodifiable(_notifications);
+  bool get isConnected => _status == ConnectionStatus.connected;
+  bool get isConnecting =>
+      _status == ConnectionStatus.connecting ||
+      _status == ConnectionStatus.switching;
+
+  Duration get uptime {
+    if (_connectedAt == null) return Duration.zero;
+    return DateTime.now().difference(_connectedAt!);
+  }
+
+  String get uptimeFormatted => ProxyUtils.formatUptime(uptime);
+
+  /// Connect to the given proxy (or pick the best available one).
+  Future<void> connect([ProxyModel? proxy]) async {
+    _setStatus(ConnectionStatus.connecting);
+
+    final target = proxy ?? _pickBestProxy();
+    if (target == null) {
+      _addNotification('No proxies available. Loading list…');
+      await _proxyList.loadProxies(country: _settings.preferredCountry);
+      final next = _pickBestProxy();
+      if (next == null) {
+        _setStatus(ConnectionStatus.disconnected);
+        _addNotification('Could not find a working proxy.');
+        return;
+      }
+      return connect(next);
+    }
+
+    final ok = await _connectionService.connect(target);
+    if (!ok) {
+      _addNotification('Failed to connect to ${target.address}. Trying next…');
+      return _failoverToNext(target);
+    }
+
+    _activeProxy = target;
+    _connectedAt = DateTime.now();
+    _setStatus(ConnectionStatus.connected);
+    _startHealthCheck();
+    unawaited(_refreshExternalIp());
+  }
+
+  void disconnect() {
+    _stopHealthCheck();
+    _connectionService.disconnect();
+    _activeProxy = null;
+    _externalIp = null;
+    _connectedAt = null;
+    _setStatus(ConnectionStatus.disconnected);
+    notifyListeners();
+  }
+
+  /// Called by the health-check service when the active proxy has died.
+  Future<void> _onProxyDead() async {
+    final dead = _activeProxy;
+    _failCount++;
+    final msg =
+        '[${_timestamp()}] Proxy ${dead?.address ?? 'unknown'} died. Switching…';
+    _addNotification(msg);
+    await _storage.appendSwitchLog(msg);
+    await _failoverToNext(dead);
+  }
+
+  Future<void> _failoverToNext(ProxyModel? deadProxy) async {
+    _setStatus(ConnectionStatus.switching);
+    _stopHealthCheck();
+
+    ProxyModel? next;
+    try {
+      next = _proxyList.nextAliveProxy(excludeProxy: deadProxy);
+    } catch (_) {
+      // No proxies available — reload
+      _addNotification('All proxies dead. Reloading list from API…');
+      await _proxyList.loadProxies(country: _settings.preferredCountry);
+      try {
+        next = _proxyList.nextAliveProxy(excludeProxy: deadProxy);
+      } catch (_) {
+        _addNotification('Could not find any working proxy.');
+        _setStatus(ConnectionStatus.disconnected);
+        return;
+      }
+    }
+
+    _switchCount++;
+    final msg =
+        '[${_timestamp()}] Switched to ${next.address}';
+    _addNotification(msg);
+    await _storage.appendSwitchLog(msg);
+    await connect(next);
+  }
+
+  void _startHealthCheck() {
+    _stopHealthCheck();
+    _healthCheck = HealthCheckService(
+      intervalSeconds: _settings.healthCheckInterval,
+      maxFailures: _settings.maxFailures,
+      onProxyDead: _onProxyDead,
+    );
+    if (_activeProxy != null) {
+      _healthCheck!.start(_activeProxy!);
+    }
+  }
+
+  void _stopHealthCheck() {
+    _healthCheck?.stop();
+    _healthCheck = null;
+  }
+
+  Future<void> _refreshExternalIp() async {
+    final ip = await _apiService.getExternalIp();
+    _externalIp = ip;
+    notifyListeners();
+  }
+
+  ProxyModel? _pickBestProxy() {
+    final alive = _proxyList.proxies
+        .where((p) => p.status != ProxyStatus.dead)
+        .toList()
+      ..sort((a, b) {
+        if (a.latencyMs == null) return 1;
+        if (b.latencyMs == null) return -1;
+        return a.latencyMs!.compareTo(b.latencyMs!);
+      });
+    return alive.isNotEmpty ? alive.first : _proxyList.proxies.firstOrNull;
+  }
+
+  void _setStatus(ConnectionStatus status) {
+    _status = status;
+    notifyListeners();
+  }
+
+  void _addNotification(String msg) {
+    _notifications.insert(0, msg);
+    if (_notifications.length > 50) _notifications.removeLast();
+    notifyListeners();
+  }
+
+  String _timestamp() {
+    final now = DateTime.now();
+    return '${now.hour.toString().padLeft(2, '0')}:'
+        '${now.minute.toString().padLeft(2, '0')}:'
+        '${now.second.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  void dispose() {
+    _stopHealthCheck();
+    super.dispose();
+  }
+}
