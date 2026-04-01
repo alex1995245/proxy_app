@@ -5,6 +5,7 @@ import '../core/utils/proxy_utils.dart';
 import '../providers/connection_provider.dart';
 import '../providers/proxy_list_provider.dart';
 import '../providers/settings_provider.dart';
+import '../screens/manual_proxy_screen.dart';
 import '../widgets/connection_button.dart';
 import '../widgets/stats_card.dart';
 import '../widgets/status_indicator.dart';
@@ -42,6 +43,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('SOCKS5 Proxy Manager'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline),
+            tooltip: 'Add Manual Proxy',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const ManualProxyScreen(),
+              ),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: StatusIndicator(status: conn.status),
@@ -97,6 +107,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           'Latency: ${conn.activeProxy!.latencyMs}ms',
                           style: const TextStyle(color: Colors.grey),
                         ),
+                    ],
+                  ),
+                ),
+              ),
+
+            // Local bridge status
+            if (conn.isBridgeRunning && conn.bridgeDescription != null)
+              Card(
+                color: const Color(0xFF1A2A1A),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.swap_horiz,
+                          color: Color(0xFF00E676), size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Bridge',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                            Text(
+                              conn.bridgeDescription!,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF00E676),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),

@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -10,7 +8,6 @@ import 'providers/settings_provider.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/proxy_list_screen.dart';
 import 'screens/settings_screen.dart';
-import 'services/system_proxy_service.dart';
 
 class ProxyApp extends StatelessWidget {
   const ProxyApp({super.key});
@@ -61,7 +58,8 @@ class _MainShellState extends State<_MainShell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.detached) {
-      unawaited(SystemProxyService.disableProxy());
+      // disconnect() stops the local proxy bridge and disables the system proxy
+      context.read<ConnectionProvider>().disconnect();
     }
   }
 
