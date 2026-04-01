@@ -8,6 +8,7 @@ import '../services/health_check_service.dart';
 import '../services/proxifly_api_service.dart';
 import '../services/proxy_connection_service.dart';
 import '../services/storage_service.dart';
+import '../services/system_proxy_service.dart';
 import 'proxy_list_provider.dart';
 import 'settings_provider.dart';
 
@@ -88,6 +89,15 @@ class ConnectionProvider extends ChangeNotifier {
     _setStatus(ConnectionStatus.connected);
     _startHealthCheck();
     unawaited(_refreshExternalIp());
+
+    if (_settings.enableSystemProxy) {
+      final sysOk =
+          await SystemProxyService.enableProxy(target.ip, target.port);
+      if (sysOk) {
+        _addNotification(
+            'System proxy enabled for ${target.ip}:${target.port}');
+      }
+    }
   }
 
   void disconnect() {
@@ -98,6 +108,7 @@ class ConnectionProvider extends ChangeNotifier {
     _connectedAt = null;
     _setStatus(ConnectionStatus.disconnected);
     notifyListeners();
+    unawaited(SystemProxyService.disableProxy());
   }
 
   /// Called by the health-check service when the active proxy has died.

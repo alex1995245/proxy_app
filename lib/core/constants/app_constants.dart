@@ -28,4 +28,5 @@ class AppConstants {
   static const String keyDarkTheme = 'dark_theme';
   static const String keyFavoriteProxies = 'favorite_proxies';
   static const String keySwitchLog = 'switch_log';
+  static const String keyEnableSystemProxy = 'enable_system_proxy';
 }

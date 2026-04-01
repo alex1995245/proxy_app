@@ -58,6 +58,12 @@ class StorageService {
   Future<void> setDarkTheme(bool value) =>
       _p.setBool(AppConstants.keyDarkTheme, value);
 
+  bool get enableSystemProxy =>
+      _p.getBool(AppConstants.keyEnableSystemProxy) ?? true;
+
+  Future<void> setEnableSystemProxy(bool value) =>
+      _p.setBool(AppConstants.keyEnableSystemProxy, value);
+
   // ── Favourite proxies ────────────────────────────────────────────────────────
 
   List<ProxyModel> get favoriteProxies {

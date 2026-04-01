@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../core/utils/proxy_utils.dart';
 import '../providers/connection_provider.dart';
 import '../providers/proxy_list_provider.dart';
+import '../providers/settings_provider.dart';
 import '../widgets/connection_button.dart';
 import '../widgets/stats_card.dart';
 import '../widgets/status_indicator.dart';
@@ -34,6 +35,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final conn = context.watch<ConnectionProvider>();
+    final settings = context.watch<SettingsProvider>();
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -138,6 +140,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   color: Colors.orange,
                 ),
               ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // System Proxy toggle card
+            Card(
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.dns_outlined,
+                      color: settings.enableSystemProxy && conn.isConnected
+                          ? const Color(0xFF00E5FF)
+                          : Colors.grey,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'System Proxy',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            settings.enableSystemProxy && conn.isConnected
+                                ? 'ON — all programs use this proxy'
+                                : settings.enableSystemProxy
+                                    ? 'OFF — connect to activate'
+                                    : 'Disabled in settings',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: settings.enableSystemProxy &&
+                                      conn.isConnected
+                                  ? const Color(0xFF00E5FF)
+                                  : Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: settings.enableSystemProxy,
+                      onChanged: settings.setEnableSystemProxy,
+                    ),
+                  ],
+                ),
+              ),
             ),
 
             const SizedBox(height: 16),

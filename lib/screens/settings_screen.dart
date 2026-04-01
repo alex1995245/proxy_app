@@ -58,6 +58,16 @@ class SettingsScreen extends StatelessWidget {
             value: settings.darkTheme,
             onChanged: settings.setDarkTheme,
           ),
+          SwitchListTile(
+            title: const Text('Enable System-wide Proxy'),
+            subtitle: const Text(
+              'When enabled, most programs on your computer '
+              '(Chrome, Edge, etc.) will use the SOCKS5 proxy. '
+              'Note: Firefox uses its own proxy settings.',
+            ),
+            value: settings.enableSystemProxy,
+            onChanged: settings.setEnableSystemProxy,
+          ),
           const SizedBox(height: 16),
 
           _SectionHeader('Switch Log'),
