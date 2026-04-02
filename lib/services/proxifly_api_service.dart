@@ -77,8 +77,11 @@ class ProxiflyApiService {
     return [];
   }
 
-  /// Get the external IP as seen by the server (optionally through a proxy)
+  /// Get the external IP as seen by the server (optionally through a proxy).
+  /// Falls back to several alternative services when the primary returns a
+  /// 429 (rate-limit) or any other error.
   Future<String?> getExternalIp() async {
+    // Primary: Proxifly
     try {
       final response = await _dio.get(AppConstants.proxiflyIpUrl);
       if (response.statusCode == 200) {
@@ -89,7 +92,28 @@ class ProxiflyApiService {
         if (data is String) return data.trim();
       }
     } catch (e) {
-      _logError('IP check error: $e');
+      _logError('IP check error (primary): $e');
+    }
+
+    // Fallbacks — plain-text IP APIs
+    const fallbacks = [
+      'https://api.ipify.org',
+      'https://ifconfig.me/ip',
+      'https://icanhazip.com',
+    ];
+    for (final url in fallbacks) {
+      try {
+        final response = await _dio.get(
+          url,
+          options: Options(responseType: ResponseType.plain),
+        );
+        if (response.statusCode == 200 && response.data != null) {
+          final text = response.data.toString().trim();
+          if (text.isNotEmpty) return text;
+        }
+      } catch (e) {
+        _logError('IP check error ($url): $e');
+      }
     }
     return null;
   }
