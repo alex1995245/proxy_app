@@ -40,6 +40,17 @@ class SystemProxyService {
         '/f',
       ]);
 
+      // Exclude localhost and loopback from the proxy so the local bridge
+      // itself (and any local services) are never routed through the proxy.
+      await Process.run('reg', [
+        'add',
+        _regKey,
+        '/v', 'ProxyOverride',
+        '/t', 'REG_SZ',
+        '/d', 'localhost;127.0.0.1;<local>',
+        '/f',
+      ]);
+
       // Notify WinINET to re-read proxy settings immediately
       await _refreshWinInet();
 
